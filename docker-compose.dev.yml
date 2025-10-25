@@ -2,7 +2,7 @@ services:
   # Servicio de base de datos mysql
   mysql:
     image: mysql:8
-    container_name: mysql-db-sp
+    container_name: mysql-db-sp-dev
     restart: unless-stopped
     env_file:
       - .env
@@ -15,35 +15,44 @@ services:
     ports:
       - "${DB_PORT}:${DB_PORT}"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - mysql_data_dev:/var/lib/mysql
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p${MYSQL_ROOT_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # Servicio de la aplicación Spring Boot
+  # Servicio de la aplicación Spring Boot en modo desarrollo
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: ${APP_NAME}
+    image: maven:3.9.0-eclipse-temurin-17
+    container_name: ${APP_NAME}-dev
     depends_on:
       mysql:
         condition: service_healthy
     ports:
       - "${SERVER_PORT}:${SERVER_PORT}"
+      - "35729:35729"  # Puerto para LiveReload (devtools)
     env_file:
       - .env
     environment:
-      # Use container hostname for DB so the app can connect inside the compose network
       SPRING_DATASOURCE_URL: ${SPRING_DATABASE}:${DB_PORT}/${DB_NAME}
       SPRING_DATASOURCE_USERNAME: ${DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
       SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO}
       SPRING_JPA_SHOW_SQL: "${SPRING_JPA_SHOW_SQL}"
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE}
+      SPRING_DEVTOOLS_RESTART_ENABLED: "true"
+      SPRING_DEVTOOLS_LIVERELOAD_ENABLED: "true"
+    volumes:
+      # Monta tu código fuente para hot reload
+      - ./src:/app/src
+      - ./pom.xml:/app/pom.xml
+      # Cachea las dependencias de Maven para no descargarlas cada vez
+      - maven_cache:/root/.m2
+    working_dir: /app
+    command: mvn spring-boot:run
     restart: unless-stopped
 
 volumes:
-  mysql_data:
+  mysql_data_dev:
+  maven_cache:
